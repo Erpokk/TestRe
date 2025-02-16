@@ -26,7 +26,7 @@ const CalculatePuzzles = () => {
     setIsLoading(true);
     const reader = new FileReader();
 
-    // Обробка файлу в Promise для асинхронності
+    
     const fileContent = await new Promise((resolve, reject) => {
       reader.onload = (e) => resolve(e.target.result);
       reader.onerror = (e) => reject(e);
