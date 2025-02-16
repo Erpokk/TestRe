@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState } from "react";
 import Section from "../Section/Section";
 import Container from "../Container/Container";
 import css from "./CalculatePuzzles.module.css";
@@ -7,64 +7,42 @@ import ClickerGame from "../Cliker/Cliker";
 
 const CalculatePuzzles = () => {
   const [file, setFile] = useState(null);
-  const [fileContent, setFileContent] = useState("");
   const [result, setResult] = useState({
     withSeparator: "",
     withoutSeparator: "",
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const prevPuzzlesArrayRef = useRef(null);
-  const prevWorkerResultRef = useRef(null);
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
+  };
 
-  const handleFileChange = useCallback((event) => {
-    const selectedFile = event.target.files[0];
-    setFile(selectedFile);
-
-    if (selectedFile) {
-      const reader = new FileReader();
-      reader.onload = (e) => setFileContent(e.target.result);
-      reader.readAsText(selectedFile);
-    }
-  }, []);
-
-  const puzzlesArray = useMemo(() => {
-    return fileContent ? fileToNumArray(fileContent) : [];
-  }, [fileContent]);
-
-  const processFile = useCallback(async () => {
+  const processFile = async () => {
     if (!file) {
       alert("Завантажте файл");
       return;
     }
 
     setIsLoading(true);
+    const reader = new FileReader();
 
-    if (
-      prevPuzzlesArrayRef.current &&
-      JSON.stringify(prevPuzzlesArrayRef.current) ===
-        JSON.stringify(puzzlesArray)
-    ) {
-      console.log("Використовуємо кешований результат");
-      setResult(prevWorkerResultRef.current);
-      setIsLoading(false);
-      return;
-    }
+    const fileContent = await new Promise((resolve, reject) => {
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsText(file);
+    });
 
-    console.log("Запускаємо новий Web Worker");
-
-    prevPuzzlesArrayRef.current = puzzlesArray;
+    const puzzlesArray = fileToNumArray(fileContent);
 
     const worker = new Worker("/src/utils/puzzleWorker.js");
     worker.postMessage({ fragments: puzzlesArray });
 
     worker.onmessage = (event) => {
-      prevWorkerResultRef.current = event.data;
       setResult(event.data);
       setIsLoading(false);
       worker.terminate();
     };
-  }, [file, puzzlesArray]);
+  };
 
   return (
     <Section>
