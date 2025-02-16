@@ -34,7 +34,12 @@ const CalculatePuzzles = () => {
 
     const puzzlesArray = fileToNumArray(fileContent);
 
-    const worker = new Worker("/src/utils/puzzleWorker.js");
+    const worker = new Worker(
+      new URL("../../utils/puzzleWorker.js", import.meta.url),
+      {
+        type: "module",
+      }
+    );
     worker.postMessage({ fragments: puzzlesArray });
 
     worker.onmessage = (event) => {
