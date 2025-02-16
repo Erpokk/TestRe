@@ -1,47 +1,70 @@
-import { useState } from "react";
-import findLongestPuzzle from "../../utils/findLongestPuzzle";
+import { useState, useCallback, useMemo, useRef } from "react";
 import Section from "../Section/Section";
 import Container from "../Container/Container";
 import css from "./CalculatePuzzles.module.css";
 import fileToNumArray from "../../utils/fileToNumArray";
+import ClickerGame from "../Cliker/Cliker";
 
 const CalculatePuzzles = () => {
   const [file, setFile] = useState(null);
+  const [fileContent, setFileContent] = useState("");
   const [result, setResult] = useState({
     withSeparator: "",
     withoutSeparator: "",
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileChange = (event) => {
-    setFile(event.target.files[0]);
-  };
+  const prevPuzzlesArrayRef = useRef(null);
+  const prevWorkerResultRef = useRef(null);
 
-  const processFile = async () => {
+  const handleFileChange = useCallback((event) => {
+    const selectedFile = event.target.files[0];
+    setFile(selectedFile);
+
+    if (selectedFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => setFileContent(e.target.result);
+      reader.readAsText(selectedFile);
+    }
+  }, []);
+
+  const puzzlesArray = useMemo(() => {
+    return fileContent ? fileToNumArray(fileContent) : [];
+  }, [fileContent]);
+
+  const processFile = useCallback(async () => {
     if (!file) {
       alert("Завантажте файл");
       return;
     }
 
     setIsLoading(true);
-    const reader = new FileReader();
 
-    // Обробка файлу в Promise для асинхронності
-    const fileContent = await new Promise((resolve, reject) => {
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = (e) => reject(e);
-      reader.readAsText(file);
-    });
+    if (
+      prevPuzzlesArrayRef.current &&
+      JSON.stringify(prevPuzzlesArrayRef.current) ===
+        JSON.stringify(puzzlesArray)
+    ) {
+      console.log("Використовуємо кешований результат");
+      setResult(prevWorkerResultRef.current);
+      setIsLoading(false);
+      return;
+    }
 
-    const puzzlesArray = fileToNumArray(fileContent);
+    console.log("Запускаємо новий Web Worker");
 
-    const puzzleResult = await new Promise((resolve) => {
-      setTimeout(() => resolve(findLongestPuzzle(puzzlesArray)), 0);
-    });
+    prevPuzzlesArrayRef.current = puzzlesArray;
 
-    setResult(puzzleResult);
-    setIsLoading(false);
-  };
+    const worker = new Worker("/src/utils/puzzleWorker.js");
+    worker.postMessage({ fragments: puzzlesArray });
+
+    worker.onmessage = (event) => {
+      prevWorkerResultRef.current = event.data;
+      setResult(event.data);
+      setIsLoading(false);
+      worker.terminate();
+    };
+  }, [file, puzzlesArray]);
 
   return (
     <Section>
@@ -76,7 +99,7 @@ const CalculatePuzzles = () => {
           </button>
         </div>
 
-        {isLoading && <div className={css.loader}>Завантаження...</div>}
+        {isLoading && <ClickerGame isLoading={isLoading} />}
 
         {!isLoading && (
           <>
